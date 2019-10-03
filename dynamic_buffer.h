@@ -1,0 +1,6 @@
+#ifndef EXERCISE_I__DYNAMIC_BUFFER_H_
+#define EXERCISE_I__DYNAMIC_BUFFER_H_
+
+#include "common.h"
+
+#endif //EXERCISE_I__DYNAMIC_BUFFER_H_
