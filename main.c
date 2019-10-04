@@ -1,13 +1,29 @@
 #include <stdbool.h>
 #include <stdlib.h>
 #include <string.h>
+#include <unistd.h>
+#include <stdio.h>
 #include "common.h"
 #include "report.h"
 #include "utils.h"
+#include "dynamic_buffer.h"
+#include "tokenizer.h"
 
 #define INPUT_FILE_OPTION "-i"
 #define OUTPUT_FILE_OPTION "-o"
 #define UPDATES_N_OPTION "-n"
+
+#define LBF_COMMAND "lbf"
+#define LRB_COMMAND "lrb"
+#define INS_COMMAND "ins"
+#define FIND_COMMAND "find"
+#define DELETE_COMMAND "delete"
+#define VOTE_COMMAND "vote"
+#define LOAD_COMMAND "load"
+#define VOTED_COMMAND "voted"
+#define EXIT_COMMAND "exit"
+
+dynamic_buffer *stdin_buffer;
 
 typedef struct program_options {
   char *input_file;
@@ -69,7 +85,64 @@ program_options get_program_options(int argc, char *args[]) {
   return default_options;
 }
 
+void process_command(char *restrict command) {
+  tokenizer tokenizer = {
+      .stream = command,
+      .length = strlen(command),
+      .index = 0U,
+      .delimiter = ' '
+  };
+
+  while (tokenizer_has_next(&tokenizer)) {
+    token token = tokenizer_next_token(&tokenizer);
+    if (!strncmp(token.string, LBF_COMMAND, token.length)) {
+
+    } else if (!strncmp(token.string, LRB_COMMAND, token.length)) {
+
+    } else if (!strncmp(token.string, INS_COMMAND, token.length)) {
+
+    } else if (!strncmp(token.string, FIND_COMMAND, token.length)) {
+
+    } else if (!strncmp(token.string, DELETE_COMMAND, token.length)) {
+
+    } else if (!strncmp(token.string, VOTE_COMMAND, token.length)) {
+
+    } else if (!strncmp(token.string, LOAD_COMMAND, token.length)) {
+
+    } else if (!strncmp(token.string, VOTED_COMMAND, token.length)) {
+
+    } else if (!strncmp(token.string, EXIT_COMMAND, token.length)) {
+
+    } else {
+
+    }
+  }
+}
+
 int main(int argc, char *args[]) {
+  tokenizer tokenizer = {.delimiter = ' '};
+  // start off with 20 characters capacity
+  stdin_buffer = dynamic_buffer_create(20);
   program_options options = get_program_options(argc, args);
+  while (true) {
+    ssize_t bytes_read;
+    byte character;
+    do {
+      bytes_read = read(STDIN_FILENO, &character, sizeof(byte));
+      if (bytes_read > 0 && character != '\n') {
+        dynamic_buffer_append(stdin_buffer, sizeof(byte), &character);
+      }
+    } while (bytes_read > 0 && character != '\n');
+    if (!stdin_buffer->length) break;
+    printf("Read %.*s\n", stdin_buffer->length, stdin_buffer->contents);
+    tokenizer.stream = stdin_buffer->contents;
+    tokenizer.index = 0U;
+    tokenizer.length = stdin_buffer->length;
+    while (tokenizer_has_next(&tokenizer)) {
+      token token = tokenizer_next_token(&tokenizer);
+      printf("Token: %.*s\n", token.length, token.string);
+    }
+    dynamic_buffer_clear(stdin_buffer);
+  }
   return 0;
 }

@@ -12,23 +12,20 @@ typedef struct bloom_filter {
 } bloom_filter;
 
 
-internal __ALWAYS_INLINE size_t
-byte_pos(size_t bit_number) {
+internal __ALWAYS_INLINE size_t byte_pos(size_t bit_number) {
   return (bit_number - 1U) >> 6U;
 }
 
-internal __ALWAYS_INLINE size_t
-bit_offset(size_t bit_number) {
+internal __ALWAYS_INLINE size_t bit_offset(size_t bit_number) {
   return (bit_number - 1U) & 63U;
 }
 
-internal __ALWAYS_INLINE byte
-get_bit(const byte *restrict set, size_t bit_number) {
+internal __ALWAYS_INLINE byte get_bit(const byte *restrict set,
+    size_t bit_number) {
   return (set[byte_pos(bit_number)] >> bit_offset(bit_number)) & 1U;
 }
 
-internal __ALWAYS_INLINE void
-set_bit(byte *restrict set, size_t bit_number) {
+internal __ALWAYS_INLINE void set_bit(byte *restrict set, size_t bit_number) {
   set[byte_pos(bit_number)] |= (1U << bit_offset(bit_number));
 }
 
