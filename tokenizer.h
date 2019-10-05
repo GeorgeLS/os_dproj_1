@@ -21,4 +21,6 @@ bool tokenizer_has_next(tokenizer *tokenizer) __NON_NULL(1);
 
 token tokenizer_next_token(tokenizer *tokenizer) __NON_NULL(1);
 
+size_t tokenizer_remaining_tokens(tokenizer *tokenizer) __NON_NULL(1);
+
 #endif //EXERCISE_I__TOKENIZER_H_

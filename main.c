@@ -8,6 +8,7 @@
 #include "utils.h"
 #include "dynamic_buffer.h"
 #include "tokenizer.h"
+#include "bloom_filter.h"
 
 #define INPUT_FILE_OPTION "-i"
 #define OUTPUT_FILE_OPTION "-o"
@@ -21,8 +22,11 @@
 #define VOTE_COMMAND "vote"
 #define LOAD_COMMAND "load"
 #define VOTED_COMMAND "voted"
+#define VOTED_PER_POSTCODE_COMMAND "votedperpc"
 #define EXIT_COMMAND "exit"
 
+global bool running = true;
+global bloom_filter *bf;
 dynamic_buffer *stdin_buffer;
 
 typedef struct program_options {
@@ -85,36 +89,86 @@ program_options get_program_options(int argc, char *args[]) {
   return default_options;
 }
 
-void process_command(char *restrict command) {
+void process_command(const char *restrict command, size_t command_length) {
   tokenizer tokenizer = {
       .stream = command,
-      .length = strlen(command),
+      .length = command_length,
       .index = 0U,
       .delimiter = ' '
   };
 
   while (tokenizer_has_next(&tokenizer)) {
-    token token = tokenizer_next_token(&tokenizer);
-    if (!strncmp(token.string, LBF_COMMAND, token.length)) {
-
-    } else if (!strncmp(token.string, LRB_COMMAND, token.length)) {
-
-    } else if (!strncmp(token.string, INS_COMMAND, token.length)) {
-
-    } else if (!strncmp(token.string, FIND_COMMAND, token.length)) {
-
-    } else if (!strncmp(token.string, DELETE_COMMAND, token.length)) {
-
-    } else if (!strncmp(token.string, VOTE_COMMAND, token.length)) {
-
-    } else if (!strncmp(token.string, LOAD_COMMAND, token.length)) {
-
-    } else if (!strncmp(token.string, VOTED_COMMAND, token.length)) {
-
-    } else if (!strncmp(token.string, EXIT_COMMAND, token.length)) {
-
+    token command_token = tokenizer_next_token(&tokenizer);
+    string_to_lowercase(command_token.string, command_token.length);
+    size_t remaining_tokens = tokenizer_remaining_tokens(&tokenizer);
+    if (!strncmp(command_token.string, LBF_COMMAND, command_token.length)) {
+      if (remaining_tokens != 1U) {
+        report_error("lbf command requires exactly one argument");
+        break;
+      }
+      token key = tokenizer_next_token(&tokenizer);
+      if (bloom_filter_contains(bf, key.length, key.string)) {
+        printf("Maybe\n");
+      } else {
+        printf("No\n");
+      }
+    } else if (!strncmp(command_token.string, LRB_COMMAND, command_token.length)) {
+      if (remaining_tokens != 1U) {
+        report_error("lrb command requires exactly one argument");
+        break;
+      }
+      // TODO(Gliontos): Handle lrb command
+    } else if (!strncmp(command_token.string, INS_COMMAND, command_token.length)) {
+      if (remaining_tokens != 1) {
+        report_error("ins record requires exactly one argument");
+        break;
+        }
+      // TODO(Gliontos): Handle ins command
+    } else if (!strncmp(command_token.string, FIND_COMMAND, command_token.length)) {
+      if (remaining_tokens != 1U) {
+        report_error("find command requires exactly one argument");
+        break;
+      }
+      // TODO(Gliontos): Handle find command
+    } else if (!strncmp(command_token.string, DELETE_COMMAND, command_token.length)) {
+      if (remaining_tokens != 1U) {
+        report_error("delete command requires exactly one argument");
+        break;
+      }
+      // TODO(Gliontos): Handle delete command
+    } else if (!strncmp(command_token.string, VOTE_COMMAND, command_token.length)) {
+      if (remaining_tokens != 1U) {
+        report_error("vote command requires exactly one argument");
+        break;
+      }
+      // TODO(Gliontos): Handle vote command
+    } else if (!strncmp(command_token.string, LOAD_COMMAND, command_token.length)) {
+      if (remaining_tokens != 1U) {
+        report_error("load command requires exactly one argument");
+        break;
+      }
+      // TODO(Gliontos): Handle load command
+    } else if (!strncmp(command_token.string, VOTED_COMMAND, command_token.length)) {
+      if (remaining_tokens > 1U) {
+        report_error("voted command requires at most one argument");
+        break;
+      }
+      // TODO(Gliontos): Handle voted command
+    } else if (!strncmp(command_token.string, VOTED_PER_POSTCODE_COMMAND, command_token.length)) {
+      if (remaining_tokens != 0U) {
+        report_error("votedperpc command requires no arguments");
+        break;
+      }
+      // TODO(Gliontos): Handle votedperpc command
+    } else if (!strncmp(command_token.string, EXIT_COMMAND, command_token.length)) {
+      if (remaining_tokens != 0U) {
+        report_error("exit command requires no arguments");
+        break;
+      }
+      running = false;
     } else {
-
+      report_error("Unknown command \"%.*s\"", command_token.length, command_token.string);
+      break;
     }
   }
 }
@@ -124,7 +178,7 @@ int main(int argc, char *args[]) {
   // start off with 20 characters capacity
   stdin_buffer = dynamic_buffer_create(20);
   program_options options = get_program_options(argc, args);
-  while (true) {
+  while (running) {
     ssize_t bytes_read;
     byte character;
     do {
@@ -133,16 +187,19 @@ int main(int argc, char *args[]) {
         dynamic_buffer_append(stdin_buffer, sizeof(byte), &character);
       }
     } while (bytes_read > 0 && character != '\n');
-    if (!stdin_buffer->length) break;
-    printf("Read %.*s\n", stdin_buffer->length, stdin_buffer->contents);
-    tokenizer.stream = stdin_buffer->contents;
-    tokenizer.index = 0U;
-    tokenizer.length = stdin_buffer->length;
-    while (tokenizer_has_next(&tokenizer)) {
-      token token = tokenizer_next_token(&tokenizer);
-      printf("Token: %.*s\n", token.length, token.string);
+    if (stdin_buffer->length) {
+      printf("Read %.*s\n", stdin_buffer->length, stdin_buffer->contents);
+      tokenizer.stream = stdin_buffer->contents;
+      tokenizer.index = 0U;
+      tokenizer.length = stdin_buffer->length;
+      while (tokenizer_has_next(&tokenizer)) {
+        token token = tokenizer_next_token(&tokenizer);
+        printf("Token: %.*s\n", token.length, token.string);
+      }
+      process_command(stdin_buffer->contents, stdin_buffer->length);
+      dynamic_buffer_clear(stdin_buffer);
     }
-    dynamic_buffer_clear(stdin_buffer);
   }
+  // TODO(Gliontos): Cleanup the mess
   return 0;
 }
