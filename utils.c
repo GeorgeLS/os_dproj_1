@@ -14,3 +14,15 @@ void string_to_lowercase(char *string, size_t n) {
     string[i] = tolower(string[i]);
   }
 }
+
+bool string_less(const char *restrict lhs, const char *restrict rhs) {
+  return strcmp(lhs, rhs) < 0;
+}
+
+bool string_greater(const char *restrict lhs, const char *restrict rhs) {
+  return strcmp(lhs, rhs) > 0;
+}
+
+bool string_equals(const char *restrict lhs, const char *restrict rhs) {
+  return !strcmp(lhs, rhs);
+}

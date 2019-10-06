@@ -7,6 +7,16 @@
 #include "common.h"
 
 bool string_to_i64(char *string, i64 *out) __NON_NULL(1, 2);
+
 void string_to_lowercase(char *string, size_t n) __NON_NULL(1);
+
+bool string_less(const char *restrict lhs, const char *restrict rhs)
+__NON_NULL(1, 2);
+
+bool string_greater(const char *restrict lhs, const char *restrict rhs)
+__NON_NULL(1, 2);
+
+bool string_equals(const char *restrict lhs, const char *restrict rhs)
+__NON_NULL(1, 2);
 
 #endif //EXERCISE_I__UTILS_H_
