@@ -1,3 +1,4 @@
+#include <string.h>
 #include <stdlib.h>
 #include "rb_tree.h"
 #include "utils.h"
@@ -137,6 +138,22 @@ internal void rb_tree_reorder(rb_node *node) {
   }
 }
 
+internal rb_node *__rb_tree_search(rb_tree *tree, const char *restrict key) {
+  size_t key_length = strlen(key);
+  rb_node *current = tree->root;
+  while (current != NULL) {
+    int order = strncmp(key, current->data.id, key_length);
+    if (order < 0) {
+      current = current->left;
+    } else if (order > 0) {
+      current = current->right;
+    } else {
+      return current;
+    }
+  }
+  return NULL;
+}
+
 rb_tree rb_tree_create(void) {
   return (rb_tree) {
       .root = NULL
@@ -150,10 +167,117 @@ bool rb_tree_insert(rb_tree *tree, voter *data) {
   return true;
 }
 
-void rb_tree_delete(rb_tree *tree, const char *restrict key) {
+internal rb_node *get_replacement_node(rb_node *to_replace) {
+  if (to_replace->left && to_replace->right) {
+    to_replace = to_replace->right;
+    while (to_replace) {
+      to_replace = to_replace->left;
+    }
+    return to_replace;
+  }
+  if (!to_replace->left && !to_replace->right) return NULL;
+  return to_replace->left ? to_replace->left : to_replace->right;
+}
 
+internal void rb_tree_delete_case_1(rb_node *);
+internal void rb_tree_delete_case_2(rb_node *, rb_node *);
+internal void rb_tree_delete_case_3(rb_node *, rb_node *);
+internal void rb_tree_delete_case_4(rb_node *, rb_node *);
+internal void rb_tree_delete_case_5(rb_node *, rb_node *);
+internal void rb_tree_delete_case_6(rb_node *, rb_node *);
+
+internal void rb_tree_delete_case_1(rb_node *node) {
+  if (node->parent) {
+    rb_tree_delete_case_2(node, sibling(node));
+  }
+}
+
+internal void rb_tree_delete_case_2(rb_node *node, rb_node *sibling) {
+  if (sibling->color == RED) {
+    node->parent->color = RED;
+    sibling->color = BLACK;
+    if (node == node->parent->left) {
+      rotate_left(node->parent);
+    } else {
+      rotate_right(node->parent);
+    }
+  }
+  rb_tree_delete_case_3(node, sibling);
+}
+
+internal void rb_tree_delete_case_3(rb_node *node, rb_node *sibling) {
+  if (node->parent->color == BLACK && sibling->color == BLACK &&
+      sibling->left->color == BLACK && sibling->right->color == BLACK) {
+    sibling->color = RED;
+    rb_tree_delete_case_1(node->parent);
+  } else {
+    rb_tree_delete_case_4(node, sibling);
+  }
+}
+
+internal void rb_tree_delete_case_4(rb_node *node, rb_node *sibling) {
+  if (node->parent->color == RED && sibling->color == BLACK &&
+      sibling->left->color == BLACK && sibling->right->color == BLACK) {
+    sibling->color = RED;
+    node->parent->color = BLACK;
+  } else {
+    rb_tree_delete_case_5(node, sibling);
+  }
+}
+
+internal void rb_tree_delete_case_5(rb_node *node, rb_node *sibling) {
+  if (sibling->color == BLACK) {
+    if (node == node->parent->left && sibling->right->color == BLACK &&
+        sibling->left->color == RED) {
+      sibling->color = RED;
+      sibling->left->color = BLACK;
+      rotate_right(sibling);
+    } else if (node == node->parent->right && sibling->right->color == RED &&
+        sibling->left->color == BLACK) {
+      sibling->color = RED;
+      sibling->right->color=  BLACK;
+      rotate_left(sibling);
+    }
+  }
+  rb_tree_delete_case_6(node, sibling);
+}
+
+internal void rb_tree_delete_case_6(rb_node *node, rb_node *sibling) {
+  sibling->color = node->parent->color;
+  node->parent->color = BLACK;
+  if (node == node->parent->left) {
+    sibling->right->color = BLACK;
+    rotate_left(node->parent);
+  } else {
+    sibling->left->color = BLACK;
+    rotate_right(node->parent);
+  }
+}
+
+void rb_tree_delete(rb_tree *tree, const char *restrict key) {
+  rb_node *to_replace = __rb_tree_search(tree, key);
+  if (__glibc_unlikely(!to_replace)) return;
+  rb_node *replacement = get_replacement_node(to_replace);
+
+  replacement->parent = to_replace->parent;
+  if (to_replace == to_replace->parent->left) {
+    to_replace->parent->left = replacement;
+  } else {
+    to_replace->parent->right = replacement;
+  }
+
+  if (to_replace->color == BLACK) {
+    if (replacement && replacement->color == RED) {
+      replacement->color = BLACK;
+    } else {
+      rb_tree_delete_case_1(replacement);
+    }
+  }
+
+  free(to_replace);
 }
 
 voter *rb_tree_search(rb_tree *tree, const char *restrict key) {
-
+  rb_node *result = __rb_tree_search(tree, key);
+  return result ? &result->data : NULL;
 }

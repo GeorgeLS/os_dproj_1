@@ -9,6 +9,7 @@
 #include "dynamic_buffer.h"
 #include "tokenizer.h"
 #include "bloom_filter.h"
+#include "rb_tree.h"
 
 #define INPUT_FILE_OPTION "-i"
 #define OUTPUT_FILE_OPTION "-o"
@@ -27,6 +28,7 @@
 
 global bool running = true;
 global bloom_filter *bf;
+global rb_tree tree;
 dynamic_buffer *stdin_buffer;
 
 typedef struct program_options {
@@ -112,62 +114,117 @@ void process_command(const char *restrict command, size_t command_length) {
       } else {
         printf("No\n");
       }
-    } else if (!strncmp(command_token.string, LRB_COMMAND, command_token.length)) {
+    } else if (!strncmp(command_token.string,
+                        LRB_COMMAND,
+                        command_token.length)) {
       if (remaining_tokens != 1U) {
         report_error("lrb command requires exactly one argument");
         break;
       }
-      // TODO(Gliontos): Handle lrb command
-    } else if (!strncmp(command_token.string, INS_COMMAND, command_token.length)) {
+      token key = tokenizer_next_token(&tokenizer);
+      voter *voter = rb_tree_search(&tree, key.string);
+      if (voter) {
+        // TODO(Gliontos): Print voter
+      } else {
+        printf("Voter with key \"%.*s\" does not exist.",
+               key.length, key.string);
+      }
+    } else if (!strncmp(command_token.string,
+                        INS_COMMAND,
+                        command_token.length)) {
       if (remaining_tokens != 1) {
         report_error("ins record requires exactly one argument");
         break;
-        }
-      // TODO(Gliontos): Handle ins command
-    } else if (!strncmp(command_token.string, FIND_COMMAND, command_token.length)) {
+      }
+      token key = tokenizer_next_token(&tokenizer);
+      rb_tree_insert(&tree, key.string);
+      // TODO(Gliontos): check for number of updates and restructure bloom
+      //  filter
+    } else if (!strncmp(command_token.string,
+                        FIND_COMMAND,
+                        command_token.length)) {
       if (remaining_tokens != 1U) {
         report_error("find command requires exactly one argument");
         break;
       }
-      // TODO(Gliontos): Handle find command
-    } else if (!strncmp(command_token.string, DELETE_COMMAND, command_token.length)) {
+      token key = tokenizer_next_token(&tokenizer);
+      if (bloom_filter_contains(bf, key.length, key.string)) {
+        voter *voter = rb_tree_search(&tree, key.string);
+        if (voter) {
+          // TODO(Gliontos): print voter
+        } else {
+          printf("Voter with key \"%.*s\" does not exist.",
+                 key.length, key.string);
+        }
+      } else {
+        printf("Voter with key \"%.*s\" does not exist.",
+               key.length, key.string);
+      }
+    } else if (!strncmp(command_token.string,
+                        DELETE_COMMAND,
+                        command_token.length)) {
       if (remaining_tokens != 1U) {
         report_error("delete command requires exactly one argument");
         break;
       }
-      // TODO(Gliontos): Handle delete command
-    } else if (!strncmp(command_token.string, VOTE_COMMAND, command_token.length)) {
+      token key = tokenizer_next_token(&tokenizer);
+      rb_tree_delete(&tree, key.string);
+    } else if (!strncmp(command_token.string,
+                        VOTE_COMMAND,
+                        command_token.length)) {
       if (remaining_tokens != 1U) {
         report_error("vote command requires exactly one argument");
         break;
       }
-      // TODO(Gliontos): Handle vote command
-    } else if (!strncmp(command_token.string, LOAD_COMMAND, command_token.length)) {
+      token key = tokenizer_next_token(&tokenizer);
+      voter *voter = rb_tree_search(&tree, key.string);
+      if (voter && !voter->has_voted) {
+        voter->has_voted = true;
+      } else {
+        if (!voter) {
+          printf("Voter with key \"%.*s\" does not exist.",
+                 key.length, key.string);
+        } else {
+          printf("Voter with key \"%.*s\" has already voted",
+              key.length, key.string);
+        }
+      }
+    } else if (!strncmp(command_token.string,
+                        LOAD_COMMAND,
+                        command_token.length)) {
       if (remaining_tokens != 1U) {
         report_error("load command requires exactly one argument");
         break;
       }
       // TODO(Gliontos): Handle load command
-    } else if (!strncmp(command_token.string, VOTED_COMMAND, command_token.length)) {
+    } else if (!strncmp(command_token.string,
+                        VOTED_COMMAND,
+                        command_token.length)) {
       if (remaining_tokens > 1U) {
         report_error("voted command requires at most one argument");
         break;
       }
       // TODO(Gliontos): Handle voted command
-    } else if (!strncmp(command_token.string, VOTED_PER_POSTCODE_COMMAND, command_token.length)) {
+    } else if (!strncmp(command_token.string,
+                        VOTED_PER_POSTCODE_COMMAND,
+                        command_token.length)) {
       if (remaining_tokens != 0U) {
         report_error("votedperpc command requires no arguments");
         break;
       }
       // TODO(Gliontos): Handle votedperpc command
-    } else if (!strncmp(command_token.string, EXIT_COMMAND, command_token.length)) {
+    } else if (!strncmp(command_token.string,
+                        EXIT_COMMAND,
+                        command_token.length)) {
       if (remaining_tokens != 0U) {
         report_error("exit command requires no arguments");
         break;
       }
       running = false;
     } else {
-      report_error("Unknown command \"%.*s\"", command_token.length, command_token.string);
+      report_error("Unknown command \"%.*s\"",
+                   command_token.length,
+                   command_token.string);
       break;
     }
   }
