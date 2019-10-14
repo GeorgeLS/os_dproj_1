@@ -138,8 +138,8 @@ internal void rb_tree_reorder(rb_node *node) {
   }
 }
 
-internal rb_node *__rb_tree_search(rb_tree *tree, const char *restrict key) {
-  size_t key_length = strlen(key);
+internal rb_node *__rb_tree_search(rb_tree *tree, size_t key_length,
+                                   const char key[static key_length]) {
   rb_node *current = tree->root;
   while (current != NULL) {
     int order = strncmp(key, current->data.id, key_length);
@@ -235,7 +235,7 @@ internal void rb_tree_delete_case_5(rb_node *node, rb_node *sibling) {
     } else if (node == node->parent->right && sibling->right->color == RED &&
         sibling->left->color == BLACK) {
       sibling->color = RED;
-      sibling->right->color=  BLACK;
+      sibling->right->color = BLACK;
       rotate_left(sibling);
     }
   }
@@ -254,8 +254,9 @@ internal void rb_tree_delete_case_6(rb_node *node, rb_node *sibling) {
   }
 }
 
-void rb_tree_delete(rb_tree *tree, const char *restrict key) {
-  rb_node *to_replace = __rb_tree_search(tree, key);
+void rb_tree_delete(rb_tree *tree, size_t key_length,
+                    const char key[static key_length]) {
+  rb_node *to_replace = __rb_tree_search(tree, key_length, key);
   if (__glibc_unlikely(!to_replace)) return;
   rb_node *replacement = get_replacement_node(to_replace);
 
@@ -277,7 +278,8 @@ void rb_tree_delete(rb_tree *tree, const char *restrict key) {
   free(to_replace);
 }
 
-voter *rb_tree_search(rb_tree *tree, const char *restrict key) {
-  rb_node *result = __rb_tree_search(tree, key);
+voter *rb_tree_search(rb_tree *tree, size_t key_length,
+                      const char key[static key_length]) {
+  rb_node *result = __rb_tree_search(tree, key_length, key);
   return result ? &result->data : NULL;
 }

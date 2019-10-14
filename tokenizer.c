@@ -14,9 +14,7 @@ token tokenizer_next_token(tokenizer *tokenizer) {
 
   tokenizer->index = current_index == tokenizer->length
       ? current_index
-      : current_index + 1;
-
-  tokenizer->stream[tokenizer->index] = '\0';
+      : current_index + 1U;
 
   return (token) {
       .string = &tokenizer->stream[old_pos],
