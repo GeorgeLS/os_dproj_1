@@ -119,7 +119,7 @@ u64 murmur_hash(const byte *restrict key, size_t len) {
 
 u64 simple_hash(const byte *restrict key, size_t len) {
   u64 hash = 0U;
-  for (size_t i = 0U; i < len >> 8U; i += 64U) {
+  for (size_t i = 0U; i < len >> 6U; i += 64U, key += 64U, len -= 64U) {
     __m256i v = _mm256_add_epi64(
         _mm256_load_si256(key),
         _mm256_load_si256(key + 32U));
@@ -127,30 +127,22 @@ u64 simple_hash(const byte *restrict key, size_t len) {
     hash += _mm256_extract_epi64(v, 1U);
     hash += _mm256_extract_epi64(v, 2U);
     hash += _mm256_extract_epi64(v, 3U);
-    key += 64U;
-    len -= 64U;
   }
 
-  for (size_t i = 0U; i < len >> 5U; i += 32U) {
+  for (size_t i = 0U; i < len >> 5U; i += 32U, key += 32U, len -= 32U) {
     __m128i v = _mm_add_epi64(
         _mm_load_si128(key),
         _mm_load_si128(key + 16U));
     hash += _mm_extract_epi64(v, 0U);
     hash += _mm_extract_epi64(v, 1U);
-    key += 32U;
-    len -= 32U;
   }
 
-  for (size_t i = 0U; i < len >> 3U; i += 8U) {
+  for (size_t i = 0U; i < len >> 3U; i += 8U, key += 8U, len -= 8U) {
     hash += *(i64 *)key;
-    key += 8U;
-    len -= 8U;
   }
 
-  for (size_t i = 0U; i < len % 8U; ++i) {
+  for (size_t i = 0U; i < len; ++i) {
     hash += *key;
-    ++key;
-    --len;
   }
 
   return hash;
