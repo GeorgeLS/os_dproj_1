@@ -141,7 +141,7 @@ u64 simple_hash(const byte *restrict key, size_t len) {
     hash += *(i64 *)key;
   }
 
-  for (size_t i = 0U; i < len; ++i) {
+  for (size_t i = 0U; i < len; ++i, ++key) {
     hash += *key;
   }
 
