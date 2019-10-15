@@ -246,6 +246,7 @@ void process_command(const char *restrict command, size_t command_length) {
 }
 
 int main(int argc, char *args[]) {
+  simple_hash("12345678901234567890123456789012", 32);
   // TODO(Gliontos): create bloom filter and write some hash functions for it
   tokenizer tokenizer = {.delimiter = ' '};
   // start off with 20 characters capacity

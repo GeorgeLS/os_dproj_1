@@ -20,4 +20,9 @@ bool bloom_filter_contains(bloom_filter *filter, size_t bytes_n,
 void bloom_filter_add(bloom_filter *filter, size_t bytes_n,
     byte data[static bytes_n]) __NON_NULL(1, 3);
 
+u64 murmur_hash(const byte *restrict key, size_t len) __NON_NULL(1);
+
+u64 simple_hash(const byte *restrict key, size_t len) __NON_NULL(1);
+
+
 #endif //EXERCISE_I__BLOOM_FILTER_H_
