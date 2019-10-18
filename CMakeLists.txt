@@ -6,4 +6,4 @@ set(CMAKE_C_STANDARD 11)
 add_compile_options(-mavx -mavx2)
 
 add_executable(Exercise_I main.c common.h report.c report.h attributes.h
-        utils.c utils.h voter.c voter.h bloom_filter.c bloom_filter.h dynamic_buffer.c dynamic_buffer.h tokenizer.c tokenizer.h rb_tree.c rb_tree.h)
+        utils.c utils.h voter.c voter.h bloom_filter.c bloom_filter.h dynamic_buffer.c dynamic_buffer.h tokenizer.c tokenizer.h rb_tree.c rb_tree.h commands.c commands.h generic_list.h pointer_link.h)

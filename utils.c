@@ -12,8 +12,8 @@ bool string_to_i64(char *string, i64 *out) {
   return *valid;
 }
 
-void string_to_lowercase(char *string, size_t n) {
-  for (size_t i = 0U; i != n; ++i) {
+void string_to_lowercase(char *string) {
+  for (size_t i = 0U; i != strlen(string); ++i) {
     string[i] = tolower(string[i]);
   }
 }

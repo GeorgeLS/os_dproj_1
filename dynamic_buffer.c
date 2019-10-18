@@ -29,7 +29,7 @@ dynamic_buffer *dynamic_buffer_create(size_t capacity) {
 
 bool dynamic_buffer_write(dynamic_buffer *buffer,
                           size_t bytes_n, byte data[static bytes_n]) {
-  if (bytes_n > buffer->capacity) {
+  if (bytes_n + 1U > buffer->capacity) {
     if (!dynamic_buffer_reallocate(buffer, bytes_n << 1U)) {
       return false;
     }
@@ -41,7 +41,7 @@ bool dynamic_buffer_write(dynamic_buffer *buffer,
 
 bool dynamic_buffer_append(dynamic_buffer *buffer,
                            size_t bytes_n, byte data[static bytes_n]) {
-  if (buffer->length + bytes_n > buffer->capacity) {
+  if (buffer->length + bytes_n + 1U> buffer->capacity) {
     if (!dynamic_buffer_reallocate(buffer, (buffer->length + bytes_n) << 1U)) {
       return false;
     }

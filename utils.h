@@ -13,7 +13,7 @@ typedef struct file {
 
 bool string_to_i64(char *string, i64 *out) __NON_NULL(1, 2);
 
-void string_to_lowercase(char *string, size_t n) __NON_NULL(1);
+void string_to_lowercase(char *string) __NON_NULL(1);
 
 bool string_less(const char *restrict lhs, const char *restrict rhs)
 __NON_NULL(1, 2);

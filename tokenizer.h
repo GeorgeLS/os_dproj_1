@@ -5,11 +5,6 @@
 #include <stddef.h>
 #include "attributes.h"
 
-typedef struct token {
-  char *string;
-  size_t length;
-} token;
-
 typedef struct tokenizer {
   char *stream;
   size_t length;
@@ -19,7 +14,7 @@ typedef struct tokenizer {
 
 bool tokenizer_has_next(tokenizer *tokenizer) __NON_NULL(1);
 
-token tokenizer_next_token(tokenizer *tokenizer) __NON_NULL(1);
+char *tokenizer_next_token(tokenizer *tokenizer) __NON_NULL(1);
 
 size_t tokenizer_remaining_tokens(tokenizer *tokenizer) __NON_NULL(1);
 

@@ -2,6 +2,9 @@
 #include <stdlib.h>
 #include "rb_tree.h"
 #include "utils.h"
+#include "voter.h"
+#include "generic_list.h"
+#include "pointer_link.h"
 
 typedef enum color {
   BLACK, RED
@@ -138,11 +141,10 @@ internal void rb_tree_reorder(rb_node *node) {
   }
 }
 
-internal rb_node *__rb_tree_search(rb_tree *tree, size_t key_length,
-                                   const char key[static key_length]) {
+internal rb_node *__rb_tree_search(rb_tree *tree, const char *restrict key) {
   rb_node *current = tree->root;
   while (current != NULL) {
-    int order = strncmp(key, current->data.id, key_length);
+    int order = strncmp(key, current->data.id, strlen(key));
     if (order < 0) {
       current = current->left;
     } else if (order > 0) {
@@ -254,10 +256,9 @@ internal void rb_tree_delete_case_6(rb_node *node, rb_node *sibling) {
   }
 }
 
-void rb_tree_delete(rb_tree *tree, size_t key_length,
-                    const char key[static key_length]) {
-  rb_node *to_replace = __rb_tree_search(tree, key_length, key);
-  if (__glibc_unlikely(!to_replace)) return;
+bool rb_tree_delete(rb_tree *tree, const char *restrict key) {
+  rb_node *to_replace = __rb_tree_search(tree, key);
+  if (__glibc_unlikely(!to_replace)) return false;
   rb_node *replacement = get_replacement_node(to_replace);
 
   replacement->parent = to_replace->parent;
@@ -276,10 +277,43 @@ void rb_tree_delete(rb_tree *tree, size_t key_length,
   }
 
   free(to_replace);
+  return true;
 }
 
-voter *rb_tree_search(rb_tree *tree, size_t key_length,
-                      const char key[static key_length]) {
-  rb_node *result = __rb_tree_search(tree, key_length, key);
+voter *rb_tree_search(rb_tree *tree, const char *restrict key) {
+  rb_node *result = __rb_tree_search(tree, key);
   return result ? &result->data : NULL;
+}
+
+size_t rb_tree_nvoters(rb_tree *tree, i64 postal_code) {
+  size_t nvoters = 0U;
+  LIST_HEAD(stack);
+  pointer_link *link = pointer_link_create(tree->root);
+  list_add(&stack, &link->node);
+  while (!list_is_empty(&stack)) {
+    pointer_link *_link = list_first_entry(&stack, pointer_link, node);
+    rb_node *node = _link->ptr;
+    list_delete_entry(&stack);
+    free(_link);
+
+    if (node->left) {
+      link = pointer_link_create(node->left);
+      list_add(&stack, &link->node);
+    }
+
+    if (node->right) {
+      link = pointer_link_create(node->right);
+      list_add(&stack, &link->node);
+    }
+
+    if (postal_code != -1) {
+      if (postal_code == node->data.postal_code) {
+        nvoters += node->data.has_voted;
+      }
+    } else {
+      nvoters += node->data.has_voted;
+    }
+  }
+
+  return nvoters;
 }

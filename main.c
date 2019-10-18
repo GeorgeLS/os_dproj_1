@@ -1,8 +1,9 @@
 #include <stdbool.h>
 #include <stdlib.h>
 #include <string.h>
-#include <unistd.h>
 #include <stdio.h>
+#include <inttypes.h>
+#include <unistd.h>
 #include <fcntl.h>
 #include "common.h"
 #include "report.h"
@@ -11,6 +12,8 @@
 #include "tokenizer.h"
 #include "bloom_filter.h"
 #include "rb_tree.h"
+#include "voter.h"
+#include "commands.h"
 
 #define INPUT_FILE_OPTION "-i"
 #define OUTPUT_FILE_OPTION "-o"
@@ -93,138 +96,118 @@ program_options get_program_options(int argc, char *args[]) {
   return default_options;
 }
 
-void process_command(const char *restrict command, size_t command_length) {
+void process_command(const char *restrict command) {
   tokenizer tokenizer = {
       .stream = command,
-      .length = command_length,
+      .length = strlen(command),
       .index = 0U,
       .delimiter = ' '
   };
 
   while (tokenizer_has_next(&tokenizer)) {
-    token command_token = tokenizer_next_token(&tokenizer);
-    string_to_lowercase(command_token.string, command_token.length);
+    char *command_token = tokenizer_next_token(&tokenizer);
+    size_t command_len = strlen(command_token);
+    string_to_lowercase(command_token);
+
     size_t remaining_tokens = tokenizer_remaining_tokens(&tokenizer);
-    if (!strncmp(command_token.string, LBF_COMMAND, command_token.length)) {
+
+    if (!strncmp(command_token, LBF_COMMAND, command_len)) {
       if (remaining_tokens != 1U) {
         report_error("lbf command requires exactly one argument");
         break;
       }
-      token key = tokenizer_next_token(&tokenizer);
-      bool maybe_exists = bloom_filter_contains(bf, key.length, key.string);
-      dprintf(output_fd,
-              "COMMAND: " LBF_COMMAND " %2$*1$s\n"
-              "OUTPUT:\n"
-              "\t#KEY %2$*1$s %s\n"
-              "ERROR INDICATION:\n"
-              "\t-none\n",
-              key.length, key.string,
-              maybe_exists ? "POSSIBLY IN REGISTRY" : "NOT-IN-LBF");
-    } else if (!strncmp(command_token.string,
-                        LRB_COMMAND,
-                        command_token.length)) {
+      char *key = tokenizer_next_token(&tokenizer);
+      lbf_command(output_fd, bf, key);
+    } else if (!strncmp(command_token, LRB_COMMAND, command_len)) {
       if (remaining_tokens != 1U) {
         report_error("lrb command requires exactly one argument");
         break;
       }
-      token key = tokenizer_next_token(&tokenizer);
-      voter *voter = rb_tree_search(&tree, key.length, key.string);
-      dprintf(output_fd,
-              "COMMAND: " LRB_COMMAND " %2$*1$s\n"
-              "OUTPUT:\n"
-              "\t%KEY %2$*1$s %s\n"
-              "ERROR INDICATION:\n"
-              "\t-none",
-              key.length, key.string,
-              voter ? "FOUND-IN-RBT" : "NOT-IN-RBT");
-    } else if (!strncmp(command_token.string,
-                        INS_COMMAND,
-                        command_token.length)) {
-      if (remaining_tokens != 1) {
-        report_error("ins record requires exactly one argument");
+      char *key = tokenizer_next_token(&tokenizer);
+      lrb_command(output_fd, &tree, key);
+    } else if (!strncmp(command_token, INS_COMMAND, command_len)) {
+      if (remaining_tokens != 6) {
+        report_error("ins record requires exactly six arguments");
         break;
       }
-      token key = tokenizer_next_token(&tokenizer);
-      rb_tree_insert(&tree, key.string);
+//      token id = tokenizer_next_token(&tokenizer);
+//      token name = tokenizer_next_token(&tokenizer);
+//      token surname = tokenizer_next_token(&tokenizer);
+//      token age = tokenizer_next_token(&tokenizer);
+//      token gender = tokenizer_next_token(&tokenizer);
+//      token postal_code = tokenizer_next_token(&tokenizer);
+//      voter v;
+//      bool inserted = rb_tree_insert(&tree, key.string);
+//      if (inserted) {
+//        bloom_filter_add(bf, key.length, key.string);
+//        dprintf(output_fd,
+//                "COMMAND " INS_COMMAND " %2$*1$s\n"
+//                "OUTPUT:\n"
+//                "\t# REC-WITH %2$*1$s INSERTED-IN-BF-RBT\n"
+//                "ERROR INDICATION:\n"
+//                "\t-none\n", key.length, key.string);
+//      } else {
+//        dprintf(output_fd,
+//                "COMMAND " INS_COMMAND " %2$*1$s\n"
+//                "OUTPUT:\n"
+//                "\tERROR\n"
+//                "ERROR INDICATION:\n"
+//                "\t# REC-WITH %2$*1$s EXISTS\n",
+//                key.length, key.string);
+//      }
       // TODO(Gliontos): check for number of updates and restructure bloom
       //  filter
-    } else if (!strncmp(command_token.string,
-                        FIND_COMMAND,
-                        command_token.length)) {
+    } else if (!strncmp(command_token, FIND_COMMAND, command_len)) {
       if (remaining_tokens != 1U) {
         report_error("find command requires exactly one argument");
         break;
       }
-      token key = tokenizer_next_token(&tokenizer);
-      if (bloom_filter_contains(bf, key.length, key.string)) {
-        voter *voter = rb_tree_search(&tree, key.length, key.string);
-        if (voter) {
-          // TODO(Gliontos): print voter
-        } else {
-          printf("Voter with key \"%.*s\" does not exist.",
-                 key.length, key.string);
-        }
-      } else {
-        printf("Voter with key \"%.*s\" does not exist.",
-               key.length, key.string);
-      }
-    } else if (!strncmp(command_token.string,
-                        DELETE_COMMAND,
-                        command_token.length)) {
+      char *key = tokenizer_next_token(&tokenizer);
+      find_command(output_fd, bf, &tree, key);
+    } else if (!strncmp(command_token, DELETE_COMMAND, command_len)) {
       if (remaining_tokens != 1U) {
         report_error("delete command requires exactly one argument");
         break;
       }
-      token key = tokenizer_next_token(&tokenizer);
-      rb_tree_delete(&tree, key.length, key.string);
-    } else if (!strncmp(command_token.string,
-                        VOTE_COMMAND,
-                        command_token.length)) {
+      char *key = tokenizer_next_token(&tokenizer);
+      delete_command(output_fd, bf, &tree, key);
+    } else if (!strncmp(command_token, VOTE_COMMAND, command_len)) {
       if (remaining_tokens != 1U) {
         report_error("vote command requires exactly one argument");
         break;
       }
-      token key = tokenizer_next_token(&tokenizer);
-      voter *voter = rb_tree_search(&tree, key.length, key.string);
-      if (voter && !voter->has_voted) {
-        voter->has_voted = true;
-      } else {
-        if (!voter) {
-          printf("Voter with key \"%.*s\" does not exist.",
-                 key.length, key.string);
-        } else {
-          printf("Voter with key \"%.*s\" has already voted",
-                 key.length, key.string);
-        }
-      }
-    } else if (!strncmp(command_token.string,
-                        LOAD_COMMAND,
-                        command_token.length)) {
+      char *key = tokenizer_next_token(&tokenizer);
+      vote_command(output_fd, bf, &tree, key);
+    } else if (!strncmp(command_token, LOAD_COMMAND, command_len)) {
       if (remaining_tokens != 1U) {
         report_error("load command requires exactly one argument");
         break;
       }
-      token filename = tokenizer_next_token(&tokenizer);
-      check_voters_in_file(output_fd, &tree, filename.length, filename.string);
-    } else if (!strncmp(command_token.string,
-                        VOTED_COMMAND,
-                        command_token.length)) {
+      char *filename = tokenizer_next_token(&tokenizer);
+      check_voters_in_file(output_fd, bf, &tree, filename);
+    } else if (!strncmp(command_token, VOTED_COMMAND, command_len)) {
       if (remaining_tokens > 1U) {
         report_error("voted command requires at most one argument");
         break;
       }
-      // TODO(Gliontos): Handle voted command
-    } else if (!strncmp(command_token.string,
-                        VOTED_PER_POSTCODE_COMMAND,
-                        command_token.length)) {
+      if (!remaining_tokens) {
+        voted_command(output_fd, &tree);
+      } else {
+        char *postcode_token = tokenizer_next_token(&tokenizer);
+        i64 postcode;
+        if (!string_to_i64(postcode_token, &postcode)) {
+          report_error("postcode %s is not a valid postcode", postcode_token);
+        }
+        voted_postcode_command(output_fd, &tree, postcode);
+      }
+    } else if (!strncmp(command_token, VOTED_PER_POSTCODE_COMMAND,
+                        command_len)) {
       if (remaining_tokens != 0U) {
         report_error("votedperpc command requires no arguments");
         break;
       }
       // TODO(Gliontos): Handle votedperpc command
-    } else if (!strncmp(command_token.string,
-                        EXIT_COMMAND,
-                        command_token.length)) {
+    } else if (!strncmp(command_token, EXIT_COMMAND, command_len)) {
       if (remaining_tokens != 0U) {
         report_error("exit command requires no arguments");
         break;
@@ -237,21 +220,21 @@ void process_command(const char *restrict command, size_t command_length) {
               "ERROR INDICATION:\n"
               "\t-none\n");
     } else {
-      report_error("Unknown command \"%.*s\"",
-                   command_token.length,
-                   command_token.string);
+      report_error("Unknown command \"%s\"", command_token);
       break;
     }
   }
 }
 
 int main(int argc, char *args[]) {
-  // TODO(Gliontos): create bloom filter and write some hash functions for it
+  bf = bloom_filter_create(2, (hash_function[]){murmur_hash, simple_hash});
   tokenizer tokenizer = {.delimiter = ' '};
-  // start off with 20 characters capacity
   stdin_buffer = dynamic_buffer_create(20);
   program_options options = get_program_options(argc, args);
-  output_fd = open(options.output_file, O_WRONLY | O_CREAT);
+  output_fd = open(options.output_file,
+                   O_WRONLY | O_CREAT,
+                   S_IRWXU | S_IRGRP | S_IROTH);
+
   while (running) {
     ssize_t bytes_read;
     byte character;
@@ -261,20 +244,19 @@ int main(int argc, char *args[]) {
         dynamic_buffer_append(stdin_buffer, sizeof(byte), &character);
       }
     } while (bytes_read > 0 && character != '\n');
+
     if (stdin_buffer->length) {
-      printf("Read %.*s\n", stdin_buffer->length, stdin_buffer->contents);
       tokenizer.stream = stdin_buffer->contents;
       tokenizer.index = 0U;
       tokenizer.length = stdin_buffer->length;
-      while (tokenizer_has_next(&tokenizer)) {
-        token token = tokenizer_next_token(&tokenizer);
-        printf("Token: %.*s\n", token.length, token.string);
-      }
-      process_command(stdin_buffer->contents, stdin_buffer->length);
+      stdin_buffer->contents[stdin_buffer->length] = 0;
+      process_command(stdin_buffer->contents);
       dynamic_buffer_clear(stdin_buffer);
     }
   }
+
   close(output_fd);
+  bloom_filter_delete(bf);
   // TODO(Gliontos): Cleanup the mess
   return EXIT_SUCCESS;
 }

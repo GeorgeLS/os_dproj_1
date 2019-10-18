@@ -4,7 +4,7 @@ bool tokenizer_has_next(tokenizer *tokenizer) {
   return tokenizer->index != tokenizer->length;
 }
 
-token tokenizer_next_token(tokenizer *tokenizer) {
+char *tokenizer_next_token(tokenizer *tokenizer) {
   size_t length = tokenizer->length;
   char delimiter = tokenizer->delimiter;
   size_t old_pos = tokenizer->index;
@@ -19,14 +19,10 @@ token tokenizer_next_token(tokenizer *tokenizer) {
     ++current_index;
   }
 
-  tokenizer->index = current_index == tokenizer->length
-                     ? current_index
-                     : current_index + 1U;
-
-  return (token) {
-      .string = &tokenizer->stream[old_pos],
-      .length = current_index - old_pos,
-  };
+  size_t offset = current_index != length ? 1U : 0U;
+  tokenizer->stream[current_index - offset] = '\0';
+  tokenizer->index = current_index;
+  return &tokenizer->stream[old_pos];
 }
 
 size_t tokenizer_remaining_tokens(tokenizer *tokenizer) {
