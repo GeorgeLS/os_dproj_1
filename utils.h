@@ -28,4 +28,6 @@ file *read_entire_file_into_memory(const char *filename) __NON_NULL(1);
 
 void free_file(file *file) __NON_NULL(1);
 
+bool is_prime(i64 number);
+
 #endif //EXERCISE_I__UTILS_H_

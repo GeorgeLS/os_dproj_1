@@ -31,23 +31,3 @@ void report_error(const char *fmt, ...) {
   va_start(args, fmt);
   report(ERROR_TAG, fmt, args);
 }
-
-void check_voters_in_file(int out_fd, bloom_filter *bf, rb_tree *tree,
-                          const char *filename) {
-  file *file = read_entire_file_into_memory(filename);
-  if (!file) return;
-
-  tokenizer line_tok = {
-      .stream = file->contents,
-      .length = file->bytes_n,
-      .index = 0U,
-      .delimiter = '\n'
-  };
-
-  dprintf(out_fd, "COMMAND: load %s\n", filename);
-  while (tokenizer_has_next(&line_tok)) {
-    char *key = tokenizer_next_token(&line_tok);
-    voter_vote(out_fd, bf, tree, key);
-  }
-  free_file(file);
-}

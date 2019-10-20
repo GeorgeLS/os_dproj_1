@@ -14,8 +14,8 @@ typedef struct rb_node {
   struct rb_node *left;
   struct rb_node *right;
   struct rb_node *parent;
+  voter *data;
   color color : 1;
-  voter data;
 } rb_node;
 
 internal __ALWAYS_INLINE rb_node *rb_node_create(voter *data) {
@@ -23,35 +23,7 @@ internal __ALWAYS_INLINE rb_node *rb_node_create(voter *data) {
   if (__glibc_unlikely(!node)) return NULL;
   node->left = node->right = node->parent = NULL;
   node->color = RED;
-  node->data = *data;
-  return node;
-}
-
-internal rb_node *rb_tree_insert_wrapper(rb_tree *tree, voter *data) {
-  rb_node *node = rb_node_create(data);
-  if (__glibc_unlikely(!node)) return NULL;
-  if (tree->root != NULL) {
-    rb_node *current = tree->root;
-    rb_node *parent = tree->root;
-    while (current != NULL) {
-      parent = current;
-      if (string_less(data->id, current->data.id)) {
-        current = current->left;
-      } else if (string_greater(data->id, current->data.id)) {
-        current = current->right;
-      } else {
-        free(node);
-        return NULL;
-      }
-    }
-    if (string_less(data->id, parent->data.id)) {
-      parent->left = node;
-    } else {
-      parent->right = node;
-    }
-  } else {
-    tree->root = node;
-  }
+  node->data = data;
   return node;
 }
 
@@ -72,6 +44,7 @@ internal __ALWAYS_INLINE rb_node *uncle(rb_node *node) {
 }
 
 internal void rotate_left(rb_node *node) {
+  rb_node *node_parent = node->parent;
   rb_node *new_node = node->right;
   node->right = new_node->left;
   new_node->left = node;
@@ -80,7 +53,6 @@ internal void rotate_left(rb_node *node) {
     node->right->parent = node;
   }
 
-  rb_node *node_parent = node->parent;
   if (node_parent) {
     if (node == node_parent->left) {
       node_parent->left = new_node;
@@ -92,6 +64,7 @@ internal void rotate_left(rb_node *node) {
 }
 
 internal void rotate_right(rb_node *node) {
+  rb_node *node_parent = node->parent;
   rb_node *new_node = node->left;
   node->left = new_node->right;
   new_node->right = node;
@@ -100,7 +73,6 @@ internal void rotate_right(rb_node *node) {
     node->left->parent = node;
   }
 
-  rb_node *node_parent = node->parent;
   if (node_parent) {
     if (node == node_parent->left) {
       node_parent->left = new_node;
@@ -109,6 +81,33 @@ internal void rotate_right(rb_node *node) {
     }
   }
   new_node->parent = node_parent;
+}
+
+internal rb_node *rb_tree_insert_wrapper(rb_tree *tree, voter *data) {
+  rb_node *node = rb_node_create(data);
+  if (__glibc_unlikely(!node)) return NULL;
+  if (tree->root != NULL) {
+    rb_node *current = tree->root;
+    rb_node *parent = tree->root;
+    while (current != NULL) {
+      parent = current;
+      if (string_less(data->id, current->data->id)) {
+        current = current->left;
+      } else if (string_greater(data->id, current->data->id)) {
+        current = current->right;
+      } else {
+        free(node);
+        return NULL;
+      }
+    }
+    node->parent = parent;
+    if (string_less(data->id, parent->data->id)) {
+      parent->left = node;
+    } else {
+      parent->right = node;
+    }
+  }
+  return node;
 }
 
 internal void rb_tree_reorder(rb_node *node) {
@@ -131,11 +130,15 @@ internal void rb_tree_reorder(rb_node *node) {
       node = node->right;
     }
 
+    parent = node->parent;
+    gparent = grandparent(node);
+
     if (node == parent->left) {
       rotate_right(gparent);
     } else {
       rotate_left(gparent);
     }
+
     parent->color = BLACK;
     gparent->color = RED;
   }
@@ -144,7 +147,7 @@ internal void rb_tree_reorder(rb_node *node) {
 internal rb_node *__rb_tree_search(rb_tree *tree, const char *restrict key) {
   rb_node *current = tree->root;
   while (current != NULL) {
-    int order = strncmp(key, current->data.id, strlen(key));
+    int order = strncmp(key, current->data->id, strlen(key));
     if (order < 0) {
       current = current->left;
     } else if (order > 0) {
@@ -166,6 +169,11 @@ bool rb_tree_insert(rb_tree *tree, voter *data) {
   rb_node *new_node = rb_tree_insert_wrapper(tree, data);
   if (!new_node) return false;
   rb_tree_reorder(new_node);
+  rb_node *root = new_node;
+  while (root->parent != NULL) {
+    root = root->parent;
+  }
+  tree->root = root;
   return true;
 }
 
@@ -291,10 +299,10 @@ size_t rb_tree_nvoters(rb_tree *tree, i64 postal_code) {
   pointer_link *link = pointer_link_create(tree->root);
   list_add(&stack, &link->node);
   while (!list_is_empty(&stack)) {
-    pointer_link *_link = list_first_entry(&stack, pointer_link, node);
-    rb_node *node = _link->ptr;
-    list_delete_entry(&stack);
-    free(_link);
+    link = list_first_entry(&stack, pointer_link, node);
+    rb_node *node = link->ptr;
+    list_delete_entry(&link->node);
+    free(link);
 
     if (node->left) {
       link = pointer_link_create(node->left);
@@ -307,11 +315,11 @@ size_t rb_tree_nvoters(rb_tree *tree, i64 postal_code) {
     }
 
     if (postal_code != -1) {
-      if (postal_code == node->data.postal_code) {
-        nvoters += node->data.has_voted;
+      if (postal_code == node->data->postal_code) {
+        nvoters += node->data->has_voted;
       }
     } else {
-      nvoters += node->data.has_voted;
+      nvoters += node->data->has_voted;
     }
   }
 

@@ -8,14 +8,11 @@
 typedef struct bloom_filter bloom_filter;
 
 // Some C99 magic <3
-bloom_filter *bloom_filter_create(size_t hash_functions_n,
+bloom_filter *bloom_filter_create(size_t nbits, size_t hash_functions_n,
                                   hash_function hash_functions[static hash_functions_n])
-__NON_NULL(2);
+__NON_NULL(3);
 
-void bloom_filter_delete(bloom_filter * bf) __NON_NULL(1);
-
-bool bloom_filter_reallocate(bloom_filter *filter, size_t new_length)
-__NON_NULL(1);
+void bloom_filter_delete(bloom_filter *bf) __NON_NULL(1);
 
 bool bloom_filter_contains(bloom_filter *filter, const char *restrict key)
 __NON_NULL(1, 2);

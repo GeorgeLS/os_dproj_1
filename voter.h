@@ -19,11 +19,15 @@ typedef struct voter {
 
 void voter_initialize(voter *v,
                       const char *id,
-                      u64 postal_code,
                       const char *name,
                       const char *surname,
+                      u8 age,
                       char gender,
-                      u8 age) __NON_NULL(1);
+                      u64 postal_code) __NON_NULL(1);
+
+void voter_free(voter *v) __NON_NULL(1);
+
+voter *voter_create_from_string(char *voter_string) __NON_NULL(1);
 
 void voter_vote(int out_fd, bloom_filter *bf, rb_tree *tree,
                 const char *restrict id) __NON_NULL(2, 3, 4);

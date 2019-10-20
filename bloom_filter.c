@@ -4,9 +4,10 @@
 #include "bloom_filter.h"
 #include "common.h"
 #include "attributes.h"
+#include "utils.h"
 
 typedef struct bloom_filter {
-  byte *set;
+  u64 *set;
   size_t length;
   hash_function *hash_functions;
   size_t hash_functions_n;
@@ -29,38 +30,34 @@ internal __ALWAYS_INLINE void set_bit(byte *restrict set, size_t bit_number) {
   set[byte_pos(bit_number)] |= (1U << bit_offset(bit_number));
 }
 
-bloom_filter *bloom_filter_create(size_t hash_functions_n,
-                                 hash_function hash_functions[static hash_functions_n]) {
+internal __ALWAYS_INLINE size_t compute_set_size(size_t nbits) {
+  nbits = nbits * nbits * nbits;
+  while (!is_prime(nbits)) ++nbits;
+  return nbits;
+}
+
+bloom_filter *bloom_filter_create(size_t nbits, size_t hash_functions_n,
+                                  hash_function hash_functions[static hash_functions_n]) {
   bloom_filter *filter = malloc(sizeof(bloom_filter));
-  filter->length = 0U;
-  filter->set = NULL;
+  filter->length = nbits;
+  size_t bytes = compute_set_size(nbits) * sizeof(u64);
+  filter->set = malloc(bytes);
+  memset(filter->set, 0, bytes);
   filter->hash_functions = hash_functions;
   filter->hash_functions_n = hash_functions_n;
   return filter;
 }
 
-void bloom_filter_delete(bloom_filter * bf) {
+void bloom_filter_delete(bloom_filter *bf) {
   free(bf->set);
   free(bf);
-}
-
-bool bloom_filter_reallocate(bloom_filter *filter, size_t new_length) {
-  if (__glibc_unlikely(filter->length > new_length)) return true;
-  byte *new_set = malloc(new_length);
-  if (!new_set) return false;
-  byte *old_set = filter->set;
-  memcpy(new_set, old_set, filter->length);
-  filter->set = new_set;
-  filter->length = new_length;
-  free(old_set);
-  return true;
 }
 
 bool bloom_filter_contains(bloom_filter *filter, const char *restrict key) {
   byte *set = filter->set;
   for (size_t i = 0U; i != filter->hash_functions_n; ++i) {
-    size_t bit_number = filter->hash_functions[i](key, strlen(key)) %
-        filter->length;
+    size_t bit_number = (filter->hash_functions[i](key, strlen(key)) %
+        filter->length) + 1U;
 
     byte bit = get_bit(set, bit_number);
     if (!bit) return false;
@@ -71,8 +68,8 @@ bool bloom_filter_contains(bloom_filter *filter, const char *restrict key) {
 void bloom_filter_add(bloom_filter *filter, const char *restrict key) {
   byte *set = filter->set;
   for (size_t i = 0U; i != filter->hash_functions_n; ++i) {
-    size_t bit_number = filter->hash_functions[i](key, strlen(key)) %
-        filter->length;
+    size_t bit_number = (filter->hash_functions[i](key, strlen(key)) %
+        filter->length) + 1U;
 
     set_bit(set, bit_number);
   }

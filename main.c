@@ -39,13 +39,13 @@ dynamic_buffer *stdin_buffer;
 typedef struct program_options {
   char *input_file;
   char *output_file;
-  i64 updates_n;
+  i64 nupdates;
 } program_options;
 
 global program_options default_options = {
     .input_file = NULL,
     .output_file = "election.log",
-    .updates_n = 5U,
+    .nupdates = 5U,
 };
 
 bool is_option(const char *restrict arg) {
@@ -130,31 +130,7 @@ void process_command(const char *restrict command) {
         report_error("ins record requires exactly six arguments");
         break;
       }
-//      token id = tokenizer_next_token(&tokenizer);
-//      token name = tokenizer_next_token(&tokenizer);
-//      token surname = tokenizer_next_token(&tokenizer);
-//      token age = tokenizer_next_token(&tokenizer);
-//      token gender = tokenizer_next_token(&tokenizer);
-//      token postal_code = tokenizer_next_token(&tokenizer);
-//      voter v;
-//      bool inserted = rb_tree_insert(&tree, key.string);
-//      if (inserted) {
-//        bloom_filter_add(bf, key.length, key.string);
-//        dprintf(output_fd,
-//                "COMMAND " INS_COMMAND " %2$*1$s\n"
-//                "OUTPUT:\n"
-//                "\t# REC-WITH %2$*1$s INSERTED-IN-BF-RBT\n"
-//                "ERROR INDICATION:\n"
-//                "\t-none\n", key.length, key.string);
-//      } else {
-//        dprintf(output_fd,
-//                "COMMAND " INS_COMMAND " %2$*1$s\n"
-//                "OUTPUT:\n"
-//                "\tERROR\n"
-//                "ERROR INDICATION:\n"
-//                "\t# REC-WITH %2$*1$s EXISTS\n",
-//                key.length, key.string);
-//      }
+      ins_command(output_fd, bf, &tree, &tokenizer.stream[tokenizer.index]);
       // TODO(Gliontos): check for number of updates and restructure bloom
       //  filter
     } else if (!strncmp(command_token, FIND_COMMAND, command_len)) {
@@ -170,6 +146,7 @@ void process_command(const char *restrict command) {
         break;
       }
       char *key = tokenizer_next_token(&tokenizer);
+      // TODO(gliontos): We must take into consideration the number of updates
       delete_command(output_fd, bf, &tree, key);
     } else if (!strncmp(command_token, VOTE_COMMAND, command_len)) {
       if (remaining_tokens != 1U) {
@@ -184,7 +161,7 @@ void process_command(const char *restrict command) {
         break;
       }
       char *filename = tokenizer_next_token(&tokenizer);
-      check_voters_in_file(output_fd, bf, &tree, filename);
+      load_command(output_fd, bf, &tree, filename);
     } else if (!strncmp(command_token, VOTED_COMMAND, command_len)) {
       if (remaining_tokens > 1U) {
         report_error("voted command requires at most one argument");
@@ -198,6 +175,7 @@ void process_command(const char *restrict command) {
         if (!string_to_i64(postcode_token, &postcode)) {
           report_error("postcode %s is not a valid postcode", postcode_token);
         }
+        // TODO(gliontos): This must be done through the hashtable
         voted_postcode_command(output_fd, &tree, postcode);
       }
     } else if (!strncmp(command_token, VOTED_PER_POSTCODE_COMMAND,
@@ -226,33 +204,52 @@ void process_command(const char *restrict command) {
   }
 }
 
+void load_initial_data(const char *input_filename) {
+  file *input_file = read_entire_file_into_memory(input_filename);
+  tokenizer line_tok = {
+      .stream = input_file->contents,
+      .length = input_file->bytes_n,
+      .index = 0U,
+      .delimiter = '\n'
+  };
+
+  size_t nlines = tokenizer_remaining_tokens(&line_tok);
+  bf = bloom_filter_create(nlines,
+                           2,
+                           (hash_function[]) {murmur_hash, simple_hash});
+  while (tokenizer_has_next(&line_tok)) {
+    char *line = tokenizer_next_token(&line_tok);
+    voter *v = voter_create_from_string(line);
+    rb_tree_insert(&tree, v);
+    bloom_filter_add(bf, v->id);
+  }
+  free_file(input_file);
+}
+
+void read_line_from_stdin(void) {
+  ssize_t bytes_read;
+  byte character;
+  do {
+    bytes_read = read(STDIN_FILENO, &character, sizeof(byte));
+    if (bytes_read > 0 && character != '\n') {
+      dynamic_buffer_append(stdin_buffer, sizeof(byte), &character);
+    }
+  } while (bytes_read > 0 && character != '\n');
+  stdin_buffer->contents[stdin_buffer->length] = 0;
+}
+
 int main(int argc, char *args[]) {
-  bf = bloom_filter_create(2, (hash_function[]){murmur_hash, simple_hash});
-  tokenizer tokenizer = {.delimiter = ' '};
-  stdin_buffer = dynamic_buffer_create(20);
   program_options options = get_program_options(argc, args);
+  load_initial_data(options.input_file);
+  stdin_buffer = dynamic_buffer_create(20);
   output_fd = open(options.output_file,
                    O_WRONLY | O_CREAT,
                    S_IRWXU | S_IRGRP | S_IROTH);
 
   while (running) {
-    ssize_t bytes_read;
-    byte character;
-    do {
-      bytes_read = read(STDIN_FILENO, &character, sizeof(byte));
-      if (bytes_read > 0 && character != '\n') {
-        dynamic_buffer_append(stdin_buffer, sizeof(byte), &character);
-      }
-    } while (bytes_read > 0 && character != '\n');
-
-    if (stdin_buffer->length) {
-      tokenizer.stream = stdin_buffer->contents;
-      tokenizer.index = 0U;
-      tokenizer.length = stdin_buffer->length;
-      stdin_buffer->contents[stdin_buffer->length] = 0;
-      process_command(stdin_buffer->contents);
-      dynamic_buffer_clear(stdin_buffer);
-    }
+    read_line_from_stdin();
+    process_command(stdin_buffer->contents);
+    dynamic_buffer_clear(stdin_buffer);
   }
 
   close(output_fd);

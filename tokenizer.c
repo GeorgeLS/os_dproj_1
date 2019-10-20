@@ -14,13 +14,14 @@ char *tokenizer_next_token(tokenizer *tokenizer) {
     ++current_index;
   }
 
+  size_t delimiter_offset = 0U;
   while (current_index != length &&
       tokenizer->stream[current_index] == delimiter) {
     ++current_index;
+    ++delimiter_offset;
   }
 
-  size_t offset = current_index != length ? 1U : 0U;
-  tokenizer->stream[current_index - offset] = '\0';
+  tokenizer->stream[current_index - delimiter_offset] = '\0';
   tokenizer->index = current_index;
   return &tokenizer->stream[old_pos];
 }
