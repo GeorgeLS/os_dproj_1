@@ -25,26 +25,35 @@ void lrb_command(int out_fd, rb_tree *tree, const char *restrict key) {
           key, voter ? "FOUND-IN-RBT" : "NOT-IN-RBT");
 }
 
-void ins_command(int out_fd, bloom_filter *bf, rb_tree *tree,
+void ins_command(int out_fd,
+                 Hash_Table *hash_table,
+                 bloom_filter *bf,
+                 rb_tree *tree,
                  char *voter_string) {
+  // TODO(Gliontos): check for number of updates and restructure bloom
+  //  filter
   voter *v = voter_create_from_string(voter_string);
-
-  bool inserted = rb_tree_insert(tree, v);
-  if (inserted) {
-    bloom_filter_add(bf, v->id);
-    dprintf(out_fd,
-            "COMMAND ins: %1$s\n"
-            "OUTPUT:\n"
-            "\t# REC-WITH %1$s INSERTED-IN-BF-RBT\n"
-            "ERROR INDICATION:\n"
-            "\t-none\n", v->id);
-  } else {
-    dprintf(out_fd,
-            "COMMAND ins: %1$s\n"
-            "OUTPUT:\n"
-            "\tERROR\n"
-            "ERROR INDICATION:\n"
-            "\t# REC-WITH %1$s EXISTS\n", v->id);
+  if (v) {
+    if (!bloom_filter_contains(bf, v->id)) {
+      bool inserted = rb_tree_insert(tree, v);
+      if (inserted) {
+        hash_table_insert(hash_table, v);
+        bloom_filter_add(bf, v->id);
+        dprintf(out_fd,
+                "COMMAND ins: %1$s\n"
+                "OUTPUT:\n"
+                "\t# REC-WITH %1$s INSERTED-IN-BF-RBT\n"
+                "ERROR INDICATION:\n"
+                "\t-none\n", v->id);
+      } else {
+        dprintf(out_fd,
+                "COMMAND ins: %1$s\n"
+                "OUTPUT:\n"
+                "\tERROR\n"
+                "ERROR INDICATION:\n"
+                "\t# REC-WITH %1$s EXISTS\n", v->id);
+      }
+    }
   }
 }
 
@@ -98,8 +107,8 @@ void vote_command(int out_fd, bloom_filter *bf, rb_tree *tree,
   voter_vote(out_fd, bf, tree, key);
 }
 
-void voted_command(int out_fd, rb_tree *tree) {
-  size_t nvoters = rb_tree_nvoters(tree, -1);
+void voted_command(int out_fd, Hash_Table *hash_table) {
+  size_t nvoters = hash_table_nvoters(hash_table);
   dprintf(out_fd, "COMMAND: voted\n"
                   "OUTPUT:\n"
                   "\t# NUMBER %zu\n"
@@ -107,13 +116,33 @@ void voted_command(int out_fd, rb_tree *tree) {
                   "\t-none\n", nvoters);
 }
 
-void voted_postcode_command(int out_fd, rb_tree *tree, i64 postal_code) {
-  size_t nvoters = rb_tree_nvoters(tree, postal_code);
+void voted_postcode_command(int out_fd,
+                            Hash_Table *hash_table,
+                            i64 postal_code) {
+  size_t nvoters = hash_table_nvoters_postal_code(hash_table, postal_code);
   dprintf(out_fd, "COMMAND: voted %1$" PRIi64 "\n"
                   "OUTPUT:\n"
-                  "\t# IN %1$" PRIi64 "VOTERS-ARE %2$zu\n"
+                  "\t# IN %1$" PRIi64 " VOTERS-ARE %2$zu\n"
                   "ERROR INDICATION:\n"
                   "\t-none\n", postal_code, nvoters);
+}
+
+void votedperpc_command(int out_fd, Hash_Table *hash_table) {
+  dprintf(out_fd, "COMMAND: votedperpc\nOUTPUT:\n");
+  for (size_t i = 0U; i != hash_table->n_buckets; ++i) {
+    generic_list *bucket_list = &hash_table->table[i];
+    bucket_node *bnode = NULL;
+    list_for_each_entry(bucket_list, bnode, chain) {
+      size_t nvoters = 0U;
+      pointer_link *voter_link = NULL;
+      list_for_each_entry(&bnode->voters_list, voter_link, node) {
+        nvoters += ((voter *) voter_link->ptr)->has_voted;
+      }
+      dprintf(out_fd, "\t# IN %1$" PRIi64 " VOTERS-ARE %2$zu\n",
+              bnode->key, nvoters);
+    }
+  }
+  dprintf(out_fd, "ERROR INDICATION:\n\t-none\n");
 }
 
 void load_command(int out_fd, bloom_filter *bf, rb_tree *tree,
@@ -134,4 +163,12 @@ void load_command(int out_fd, bloom_filter *bf, rb_tree *tree,
     voter_vote(out_fd, bf, tree, key);
   }
   free_file(file);
+}
+
+void exit_command(int out_fd) {
+  dprintf(out_fd, "COMMAND: exit\n"
+                  "OUTPUT:\n"
+                  "\t-exit program\n"
+                  "ERROR INDICATION:\n"
+                  "\t-none\n");
 }

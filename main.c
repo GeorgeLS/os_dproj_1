@@ -14,6 +14,7 @@
 #include "rb_tree.h"
 #include "voter.h"
 #include "commands.h"
+#include "hash_table.h"
 
 #define INPUT_FILE_OPTION "-i"
 #define OUTPUT_FILE_OPTION "-o"
@@ -30,11 +31,19 @@
 #define VOTED_PER_POSTCODE_COMMAND "votedperpc"
 #define EXIT_COMMAND "exit"
 
-global int output_fd;
-global bool running = true;
-global bloom_filter *bf;
-global rb_tree tree;
 dynamic_buffer *stdin_buffer;
+
+global bool running = true;
+global int output_fd;
+
+global bloom_filter *bf;
+global hash_function bf_hfs[2] = {
+    murmur_hash,
+    simple_hash,
+};
+
+global rb_tree tree;
+global Hash_Table *hash_table;
 
 typedef struct program_options {
   char *input_file;
@@ -104,103 +113,97 @@ void process_command(const char *restrict command) {
       .delimiter = ' '
   };
 
-  while (tokenizer_has_next(&tokenizer)) {
-    char *command_token = tokenizer_next_token(&tokenizer);
-    size_t command_len = strlen(command_token);
-    string_to_lowercase(command_token);
+  char *command_token = tokenizer_next_token(&tokenizer);
+  size_t command_len = strlen(command_token);
+  string_to_lowercase(command_token);
 
-    size_t remaining_tokens = tokenizer_remaining_tokens(&tokenizer);
+  size_t remaining_tokens = tokenizer_remaining_tokens(&tokenizer);
 
-    if (!strncmp(command_token, LBF_COMMAND, command_len)) {
-      if (remaining_tokens != 1U) {
-        report_error("lbf command requires exactly one argument");
-        break;
-      }
-      char *key = tokenizer_next_token(&tokenizer);
-      lbf_command(output_fd, bf, key);
-    } else if (!strncmp(command_token, LRB_COMMAND, command_len)) {
-      if (remaining_tokens != 1U) {
-        report_error("lrb command requires exactly one argument");
-        break;
-      }
-      char *key = tokenizer_next_token(&tokenizer);
-      lrb_command(output_fd, &tree, key);
-    } else if (!strncmp(command_token, INS_COMMAND, command_len)) {
-      if (remaining_tokens != 6) {
-        report_error("ins record requires exactly six arguments");
-        break;
-      }
-      ins_command(output_fd, bf, &tree, &tokenizer.stream[tokenizer.index]);
-      // TODO(Gliontos): check for number of updates and restructure bloom
-      //  filter
-    } else if (!strncmp(command_token, FIND_COMMAND, command_len)) {
-      if (remaining_tokens != 1U) {
-        report_error("find command requires exactly one argument");
-        break;
-      }
-      char *key = tokenizer_next_token(&tokenizer);
-      find_command(output_fd, bf, &tree, key);
-    } else if (!strncmp(command_token, DELETE_COMMAND, command_len)) {
-      if (remaining_tokens != 1U) {
-        report_error("delete command requires exactly one argument");
-        break;
-      }
-      char *key = tokenizer_next_token(&tokenizer);
-      // TODO(gliontos): We must take into consideration the number of updates
-      delete_command(output_fd, bf, &tree, key);
-    } else if (!strncmp(command_token, VOTE_COMMAND, command_len)) {
-      if (remaining_tokens != 1U) {
-        report_error("vote command requires exactly one argument");
-        break;
-      }
-      char *key = tokenizer_next_token(&tokenizer);
-      vote_command(output_fd, bf, &tree, key);
-    } else if (!strncmp(command_token, LOAD_COMMAND, command_len)) {
-      if (remaining_tokens != 1U) {
-        report_error("load command requires exactly one argument");
-        break;
-      }
-      char *filename = tokenizer_next_token(&tokenizer);
-      load_command(output_fd, bf, &tree, filename);
-    } else if (!strncmp(command_token, VOTED_COMMAND, command_len)) {
-      if (remaining_tokens > 1U) {
-        report_error("voted command requires at most one argument");
-        break;
-      }
-      if (!remaining_tokens) {
-        voted_command(output_fd, &tree);
-      } else {
-        char *postcode_token = tokenizer_next_token(&tokenizer);
-        i64 postcode;
-        if (!string_to_i64(postcode_token, &postcode)) {
-          report_error("postcode %s is not a valid postcode", postcode_token);
-        }
-        // TODO(gliontos): This must be done through the hashtable
-        voted_postcode_command(output_fd, &tree, postcode);
-      }
-    } else if (!strncmp(command_token, VOTED_PER_POSTCODE_COMMAND,
-                        command_len)) {
-      if (remaining_tokens != 0U) {
-        report_error("votedperpc command requires no arguments");
-        break;
-      }
-      // TODO(Gliontos): Handle votedperpc command
-    } else if (!strncmp(command_token, EXIT_COMMAND, command_len)) {
-      if (remaining_tokens != 0U) {
-        report_error("exit command requires no arguments");
-        break;
-      }
-      running = false;
-      dprintf(output_fd,
-              "COMMAND: " EXIT_COMMAND "\n"
-              "OUTPUT:\n"
-              "\t-exit program\n"
-              "ERROR INDICATION:\n"
-              "\t-none\n");
-    } else {
-      report_error("Unknown command \"%s\"", command_token);
-      break;
+  if (!strncmp(command_token, LBF_COMMAND, command_len)) {
+    if (remaining_tokens != 1U) {
+      report_error("lbf command requires exactly one argument");
+      return;
     }
+    char *key = tokenizer_next_token(&tokenizer);
+    lbf_command(output_fd, bf, key);
+  } else if (!strncmp(command_token, LRB_COMMAND, command_len)) {
+    if (remaining_tokens != 1U) {
+      report_error("lrb command requires exactly one argument");
+      return;
+    }
+    char *key = tokenizer_next_token(&tokenizer);
+    lrb_command(output_fd, &tree, key);
+  } else if (!strncmp(command_token, INS_COMMAND, command_len)) {
+    if (remaining_tokens != 6) {
+      report_error("ins record requires exactly six arguments");
+      return;
+    }
+    ins_command(output_fd,
+                hash_table,
+                bf,
+                &tree,
+                &tokenizer.stream[tokenizer.index]);
+  } else if (!strncmp(command_token, FIND_COMMAND, command_len)) {
+    if (remaining_tokens != 1U) {
+      report_error("find command requires exactly one argument");
+      return;
+    }
+    char *key = tokenizer_next_token(&tokenizer);
+    find_command(output_fd, bf, &tree, key);
+  } else if (!strncmp(command_token, DELETE_COMMAND, command_len)) {
+    if (remaining_tokens != 1U) {
+      report_error("delete command requires exactly one argument");
+      return;
+    }
+    char *key = tokenizer_next_token(&tokenizer);
+    // TODO(gliontos): We must take into consideration the number of updates
+    delete_command(output_fd, bf, &tree, key);
+  } else if (!strncmp(command_token, VOTE_COMMAND, command_len)) {
+    if (remaining_tokens != 1U) {
+      report_error("vote command requires exactly one argument");
+      return;
+    }
+    char *key = tokenizer_next_token(&tokenizer);
+    vote_command(output_fd, bf, &tree, key);
+  } else if (!strncmp(command_token, LOAD_COMMAND, command_len)) {
+    if (remaining_tokens != 1U) {
+      report_error("load command requires exactly one argument");
+      return;
+    }
+    char *filename = tokenizer_next_token(&tokenizer);
+    load_command(output_fd, bf, &tree, filename);
+  } else if (!strncmp(command_token, VOTED_COMMAND, command_len)) {
+    if (remaining_tokens > 1U) {
+      report_error("voted command requires at most one argument");
+      return;
+    }
+    if (!remaining_tokens) {
+      voted_command(output_fd, hash_table);
+    } else {
+      char *postcode_token = tokenizer_next_token(&tokenizer);
+      i64 postcode;
+      if (!string_to_i64(postcode_token, &postcode)) {
+        report_error("postcode %s is not a valid postcode", postcode_token);
+        return;
+      }
+      voted_postcode_command(output_fd, hash_table, postcode);
+    }
+  } else if (!strncmp(command_token, VOTED_PER_POSTCODE_COMMAND,
+                      command_len)) {
+    if (remaining_tokens != 0U) {
+      report_error("votedperpc command requires no arguments");
+      return;
+    }
+    votedperpc_command(output_fd, hash_table);
+  } else if (!strncmp(command_token, EXIT_COMMAND, command_len)) {
+    if (remaining_tokens != 0U) {
+      report_error("exit command requires no arguments");
+      return;
+    }
+    running = false;
+    exit_command(output_fd);
+  } else {
+    report_error("Unknown command \"%s\"", command_token);
   }
 }
 
@@ -214,15 +217,18 @@ void load_initial_data(const char *input_filename) {
   };
 
   size_t nlines = tokenizer_remaining_tokens(&line_tok);
-  bf = bloom_filter_create(nlines,
-                           2,
-                           (hash_function[]) {murmur_hash, simple_hash});
+  bf = bloom_filter_create(nlines, 2, bf_hfs);
+  hash_table = hash_table_create(nlines, simple_hash);
   while (tokenizer_has_next(&line_tok)) {
     char *line = tokenizer_next_token(&line_tok);
     voter *v = voter_create_from_string(line);
-    rb_tree_insert(&tree, v);
-    bloom_filter_add(bf, v->id);
+    if (v) {
+      rb_tree_insert(&tree, v);
+      bloom_filter_add(bf, v->id);
+      hash_table_insert(hash_table, v);
+    }
   }
+
   free_file(input_file);
 }
 
@@ -247,13 +253,15 @@ int main(int argc, char *args[]) {
                    S_IRWXU | S_IRGRP | S_IROTH);
 
   while (running) {
+    dprintf(STDERR_FILENO, ">> ");
     read_line_from_stdin();
     process_command(stdin_buffer->contents);
     dynamic_buffer_clear(stdin_buffer);
   }
 
   close(output_fd);
-  bloom_filter_delete(bf);
+  bloom_filter_free(bf);
+  hash_table_free(hash_table);
   // TODO(Gliontos): Cleanup the mess
   return EXIT_SUCCESS;
 }

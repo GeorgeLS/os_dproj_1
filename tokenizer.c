@@ -30,13 +30,24 @@ size_t tokenizer_remaining_tokens(tokenizer *tokenizer) {
   size_t length = tokenizer->length;
   if (tokenizer->index == length) return 0U;
   size_t current_index = tokenizer->index;
-  size_t remaining_tokens = 1U;
   char delimiter = tokenizer->delimiter;
+  size_t remaining_tokens = tokenizer->stream[length - 1U] == delimiter
+      ? 0U
+      : 1U;
   while (current_index != length) {
+    size_t delimiter_offset = 0U;
     if (tokenizer->stream[current_index] == delimiter) {
       ++remaining_tokens;
+
+      while (current_index != length &&
+          tokenizer->stream[current_index] == delimiter) {
+        ++current_index;
+        ++delimiter_offset;
+      }
     }
+
     ++current_index;
+    current_index -= delimiter_offset;
   }
   return remaining_tokens;
 }

@@ -56,7 +56,7 @@ void free_file(file *file) {
 bool is_prime(i64 number) {
   if (number < 2) return false;
   if (number == 2) return true;
-  if (number & 1) return false;
+  if (!(number & 1)) return false;
   if (!(number % 3)) return number == 3;
   i64 j;
   for (i64 i = 5; (j = i * i), j <= number && j > i; i += 6) {
