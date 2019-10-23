@@ -1,10 +1,10 @@
 #include "tokenizer.h"
 
-bool tokenizer_has_next(tokenizer *tokenizer) {
+bool tokenizer_has_next(Tokenizer *tokenizer) {
   return tokenizer->index != tokenizer->length;
 }
 
-char *tokenizer_next_token(tokenizer *tokenizer) {
+char *tokenizer_next_token(Tokenizer *tokenizer) {
   size_t length = tokenizer->length;
   char delimiter = tokenizer->delimiter;
   size_t old_pos = tokenizer->index;
@@ -26,7 +26,7 @@ char *tokenizer_next_token(tokenizer *tokenizer) {
   return &tokenizer->stream[old_pos];
 }
 
-size_t tokenizer_remaining_tokens(tokenizer *tokenizer) {
+size_t tokenizer_remaining_tokens(Tokenizer *tokenizer) {
   size_t length = tokenizer->length;
   if (tokenizer->index == length) return 0U;
   size_t current_index = tokenizer->index;
@@ -35,19 +35,16 @@ size_t tokenizer_remaining_tokens(tokenizer *tokenizer) {
       ? 0U
       : 1U;
   while (current_index != length) {
-    size_t delimiter_offset = 0U;
     if (tokenizer->stream[current_index] == delimiter) {
       ++remaining_tokens;
 
       while (current_index != length &&
           tokenizer->stream[current_index] == delimiter) {
         ++current_index;
-        ++delimiter_offset;
       }
+    } else {
+      ++current_index;
     }
-
-    ++current_index;
-    current_index -= delimiter_offset;
   }
   return remaining_tokens;
 }

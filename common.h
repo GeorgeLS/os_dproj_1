@@ -18,6 +18,6 @@ typedef uint64_t u64;
 typedef int64_t i64;
 typedef uint8_t byte;
 
-typedef u64 (*hash_function) (const byte *restrict data, size_t bytes);
+typedef u64 (*Hash_Function) (const byte *restrict data, size_t bytes);
 
 #endif //EXERCISE_I__COMMON_H_

@@ -2,7 +2,7 @@
 #include <stdlib.h>
 #include "dynamic_buffer.h"
 
-internal bool dynamic_buffer_reallocate(dynamic_buffer *buffer,
+internal bool dynamic_buffer_reallocate(Dynamic_Buffer *buffer,
                                         size_t new_capacity) {
   byte *new_contents = malloc(new_capacity);
   if (!new_contents) return false;
@@ -13,8 +13,8 @@ internal bool dynamic_buffer_reallocate(dynamic_buffer *buffer,
   return true;
 }
 
-dynamic_buffer *dynamic_buffer_create(size_t capacity) {
-  dynamic_buffer *buffer = malloc(sizeof(dynamic_buffer));
+Dynamic_Buffer *dynamic_buffer_create(size_t capacity) {
+  Dynamic_Buffer *buffer = malloc(sizeof(Dynamic_Buffer));
   if (__glibc_unlikely(!buffer)) return NULL;
   byte *contents = malloc(capacity);
   if (__glibc_unlikely(!contents)) {
@@ -27,19 +27,7 @@ dynamic_buffer *dynamic_buffer_create(size_t capacity) {
   return buffer;
 }
 
-bool dynamic_buffer_write(dynamic_buffer *buffer,
-                          size_t bytes_n, byte data[static bytes_n]) {
-  if (bytes_n + 1U > buffer->capacity) {
-    if (!dynamic_buffer_reallocate(buffer, bytes_n << 1U)) {
-      return false;
-    }
-  }
-  memcpy(buffer->contents, data, bytes_n);
-  buffer->length = bytes_n;
-  return true;
-}
-
-bool dynamic_buffer_append(dynamic_buffer *buffer,
+bool dynamic_buffer_append(Dynamic_Buffer *buffer,
                            size_t bytes_n, byte data[static bytes_n]) {
   if (buffer->length + bytes_n + 1U> buffer->capacity) {
     if (!dynamic_buffer_reallocate(buffer, (buffer->length + bytes_n) << 1U)) {
@@ -51,6 +39,6 @@ bool dynamic_buffer_append(dynamic_buffer *buffer,
   return true;
 }
 
-void dynamic_buffer_clear(dynamic_buffer *buffer) {
+void dynamic_buffer_clear(Dynamic_Buffer *buffer) {
   buffer->length = 0U;
 }

@@ -5,17 +5,17 @@
 #include <stddef.h>
 #include "attributes.h"
 
-typedef struct tokenizer {
+typedef struct Tokenizer {
   char *stream;
   size_t length;
   size_t index;
   char delimiter;
-} tokenizer;
+} Tokenizer;
 
-bool tokenizer_has_next(tokenizer *tokenizer) __NON_NULL(1);
+bool tokenizer_has_next(Tokenizer *tokenizer) __NON_NULL(1);
 
-char *tokenizer_next_token(tokenizer *tokenizer) __NON_NULL(1);
+char *tokenizer_next_token(Tokenizer *tokenizer) __NON_NULL(1);
 
-size_t tokenizer_remaining_tokens(tokenizer *tokenizer) __NON_NULL(1);
+size_t tokenizer_remaining_tokens(Tokenizer *tokenizer) __NON_NULL(1);
 
 #endif //EXERCISE_I__TOKENIZER_H_

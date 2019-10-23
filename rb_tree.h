@@ -4,24 +4,26 @@
 #include <stdbool.h>
 #include "attributes.h"
 #include "common.h"
+#include "bloom_filter.h"
 
-typedef struct rb_node rb_node;
+struct RB_Node;
+struct Voter;
 
-struct voter;
+typedef struct RB_Tree {
+  struct RB_Node *root;
+  size_t nelements;
+} RB_Tree;
 
-typedef struct rb_tree {
-  rb_node *root;
-} rb_tree;
+bool rb_tree_insert(RB_Tree *tree, struct Voter *data) __NON_NULL(1, 2);
 
-rb_tree rb_tree_create(void);
-
-bool rb_tree_insert(rb_tree *tree, struct voter *data) __NON_NULL(1, 2);
-
-bool rb_tree_delete(rb_tree *tree, const char *restrict key) __NON_NULL(1, 2);
-
-struct voter *rb_tree_search(rb_tree *tree, const char *restrict key)
+struct Voter *rb_tree_remove(RB_Tree *tree, const char *restrict key)
 __NON_NULL(1, 2);
 
-size_t rb_tree_nvoters(rb_tree *tree, i64 postal_code) __NON_NULL(1);
+struct Voter *rb_tree_search(RB_Tree *tree, const char *restrict key)
+__NON_NULL(1, 2);
+
+void rb_tree_free(RB_Tree *tree) __NON_NULL(1);
+
+void restructure_bloom_filter(Bloom_Filter *bf, RB_Tree *tree) __NON_NULL(1, 2);
 
 #endif //EXERCISE_I__RB_TREE_H_

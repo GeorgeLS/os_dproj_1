@@ -6,7 +6,7 @@
 #include <string.h>
 #include <stdio.h>
 
-void voter_initialize(voter *v,
+void voter_initialize(Voter *v,
                       const char *id,
                       const char *name,
                       const char *surname,
@@ -22,16 +22,16 @@ void voter_initialize(voter *v,
   v->postal_code = postal_code;
 }
 
-void voter_free(voter *v) {
+void voter_free(Voter *v) {
   free(v->id);
   free(v->name);
   free(v->surname);
   free(v);
 }
 
-voter *voter_create_from_string(char *voter_string) {
-  voter *v = malloc(sizeof(voter));
-  tokenizer tok = {
+Voter *voter_create_from_string(char *voter_string) {
+  Voter *v = malloc(sizeof(Voter));
+  Tokenizer tok = {
       .stream = voter_string,
       .length = strlen(voter_string),
       .index = 0U,
@@ -58,10 +58,10 @@ voter *voter_create_from_string(char *voter_string) {
   return NULL;
 }
 
-void voter_vote(int out_fd, bloom_filter *bf, rb_tree *tree,
+void voter_vote(int out_fd, Bloom_Filter *bf, RB_Tree *tree,
                 const char *restrict id) {
   if (bloom_filter_contains(bf, id)) {
-    voter *voter = rb_tree_search(tree, id);
+    Voter *voter = rb_tree_search(tree, id);
     if (voter) {
       dprintf(out_fd,
               "COMMAND: vote %1$s\n"

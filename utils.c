@@ -30,7 +30,7 @@ bool string_equals(const char *restrict lhs, const char *restrict rhs) {
   return !strcmp(lhs, rhs);
 }
 
-file *read_entire_file_into_memory(const char *filename) {
+File *read_entire_file_into_memory(const char *filename) {
   int fd = open(filename, O_RDONLY);
   if (fd == -1) return NULL;
   struct stat info;
@@ -41,14 +41,14 @@ file *read_entire_file_into_memory(const char *filename) {
     return NULL;
   }
   read(fd, contents, info.st_size);
-  file *file = malloc(sizeof(file));
+  File *file = malloc(sizeof(file));
   file->contents = contents;
   file->bytes_n = info.st_size;
   close(fd);
   return file;
 }
 
-void free_file(file *file) {
+void free_file(File *file) {
   free(file->contents);
   free(file);
 }

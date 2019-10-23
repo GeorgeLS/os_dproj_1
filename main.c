@@ -2,7 +2,6 @@
 #include <stdlib.h>
 #include <string.h>
 #include <stdio.h>
-#include <inttypes.h>
 #include <unistd.h>
 #include <fcntl.h>
 #include "common.h"
@@ -31,27 +30,28 @@
 #define VOTED_PER_POSTCODE_COMMAND "votedperpc"
 #define EXIT_COMMAND "exit"
 
-dynamic_buffer *stdin_buffer;
+Dynamic_Buffer *stdin_buffer;
 
 global bool running = true;
 global int output_fd;
 
-global bloom_filter *bf;
-global hash_function bf_hfs[2] = {
+global Bloom_Filter *bf;
+global Hash_Function bf_hfs[] = {
     murmur_hash,
     simple_hash,
+    djb_hash
 };
 
-global rb_tree tree;
+global RB_Tree tree;
 global Hash_Table *hash_table;
 
-typedef struct program_options {
+typedef struct Program_Options {
   char *input_file;
   char *output_file;
   i64 nupdates;
-} program_options;
+} Program_Options;
 
-global program_options default_options = {
+global Program_Options options = {
     .input_file = NULL,
     .output_file = "election.log",
     .nupdates = 5U,
@@ -78,35 +78,35 @@ check_option_argument_and_exit_if_invalid(const char *option, const char *arg) {
   }
 }
 
-program_options get_program_options(int argc, char *args[]) {
-  for (size_t i = 1U; i != argc; ++i) {
+void set_program_options(int argc, char *args[]) {
+  for (size_t i = 1U; i < argc - 1U; ++i) {
     const char *arg = args[i];
     size_t arg_len = strlen(arg);
     const char *next_arg = args[i + 1U];
     if (!strncmp(arg, INPUT_FILE_OPTION, arg_len)) {
       check_option_argument_and_exit_if_invalid(arg, next_arg);
-      default_options.input_file = next_arg;
+      options.input_file = next_arg;
       ++i;
     } else if (!strncmp(arg, OUTPUT_FILE_OPTION, arg_len)) {
       check_option_argument_and_exit_if_invalid(arg, next_arg);
-      default_options.output_file = next_arg;
+      options.output_file = next_arg;
       ++i;
     } else if (!strncmp(arg, UPDATES_N_OPTION, arg_len)) {
       check_option_argument_and_exit_if_invalid(arg, next_arg);
-      i64 updates_n;
-      if (!string_to_i64(next_arg, &updates_n) && updates_n <= 0) {
+      i64 nupdates;
+      if (!string_to_i64(next_arg, &nupdates) && nupdates <= 0) {
         fatal("Invalid argument \"%s\" in option \"%s\"",
               next_arg, UPDATES_N_OPTION);
       }
+      options.nupdates = nupdates;
     } else {
       fatal("Unknown option \"%s\"", arg);
     }
   }
-  return default_options;
 }
 
 void process_command(const char *restrict command) {
-  tokenizer tokenizer = {
+  Tokenizer tokenizer = {
       .stream = command,
       .length = strlen(command),
       .index = 0U,
@@ -142,7 +142,8 @@ void process_command(const char *restrict command) {
                 hash_table,
                 bf,
                 &tree,
-                &tokenizer.stream[tokenizer.index]);
+                &tokenizer.stream[tokenizer.index],
+                options.nupdates);
   } else if (!strncmp(command_token, FIND_COMMAND, command_len)) {
     if (remaining_tokens != 1U) {
       report_error("find command requires exactly one argument");
@@ -156,8 +157,7 @@ void process_command(const char *restrict command) {
       return;
     }
     char *key = tokenizer_next_token(&tokenizer);
-    // TODO(gliontos): We must take into consideration the number of updates
-    delete_command(output_fd, bf, &tree, key);
+    delete_command(output_fd, bf, &tree, key, options.nupdates);
   } else if (!strncmp(command_token, VOTE_COMMAND, command_len)) {
     if (remaining_tokens != 1U) {
       report_error("vote command requires exactly one argument");
@@ -207,9 +207,9 @@ void process_command(const char *restrict command) {
   }
 }
 
-void load_initial_data(const char *input_filename) {
-  file *input_file = read_entire_file_into_memory(input_filename);
-  tokenizer line_tok = {
+void load_initial_data(void) {
+  File *input_file = read_entire_file_into_memory(options.input_file);
+  Tokenizer line_tok = {
       .stream = input_file->contents,
       .length = input_file->bytes_n,
       .index = 0U,
@@ -218,14 +218,20 @@ void load_initial_data(const char *input_filename) {
 
   size_t nlines = tokenizer_remaining_tokens(&line_tok);
   bf = bloom_filter_create(nlines, 2, bf_hfs);
-  hash_table = hash_table_create(nlines, simple_hash);
+  hash_table = hash_table_create(nlines, hash_table_hf);
+  size_t nupdates = 0U;
   while (tokenizer_has_next(&line_tok)) {
     char *line = tokenizer_next_token(&line_tok);
-    voter *v = voter_create_from_string(line);
+    Voter *v = voter_create_from_string(line);
     if (v) {
       rb_tree_insert(&tree, v);
       bloom_filter_add(bf, v->id);
       hash_table_insert(hash_table, v);
+      ++nupdates;
+      if (nupdates == options.nupdates) {
+        restructure_bloom_filter(bf, &tree);
+        nupdates = 0U;
+      }
     }
   }
 
@@ -245,8 +251,8 @@ void read_line_from_stdin(void) {
 }
 
 int main(int argc, char *args[]) {
-  program_options options = get_program_options(argc, args);
-  load_initial_data(options.input_file);
+  set_program_options(argc, args);
+  load_initial_data();
   stdin_buffer = dynamic_buffer_create(20);
   output_fd = open(options.output_file,
                    O_WRONLY | O_CREAT,
@@ -262,6 +268,6 @@ int main(int argc, char *args[]) {
   close(output_fd);
   bloom_filter_free(bf);
   hash_table_free(hash_table);
-  // TODO(Gliontos): Cleanup the mess
+  rb_tree_free(&tree);
   return EXIT_SUCCESS;
 }

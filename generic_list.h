@@ -5,9 +5,9 @@
 #include "attributes.h"
 #include "common.h"
 
-typedef struct generic_list {
-  struct generic_list *next, *prev;
-} generic_list;
+typedef struct Generic_List {
+  struct Generic_List *next, *prev;
+} Generic_List;
 
 #define container_of(ptr, type, member) ({ \
     const typeof(((type*) 0)->member) *__member_ptr = (ptr); \
@@ -50,18 +50,18 @@ typedef struct generic_list {
 #define LIST_HEAD_INIT(struct_name) { &(struct_name), &(struct_name) }
 
 #define LIST_HEAD(var_name) \
-    generic_list var_name = LIST_HEAD_INIT(var_name)
+    Generic_List var_name = LIST_HEAD_INIT(var_name)
 
 static __ALWAYS_INLINE
-void INIT_LIST_HEAD(generic_list *list) {
+void INIT_LIST_HEAD(Generic_List *list) {
   list->next = list;
   list->prev = list;
 }
 
 static __ALWAYS_INLINE
-void __list_add(generic_list *new_node,
-                generic_list *previous_node,
-                generic_list *next_node) {
+void __list_add(Generic_List *new_node,
+                Generic_List *previous_node,
+                Generic_List *next_node) {
   next_node->prev = new_node;
   new_node->next = next_node;
   new_node->prev = previous_node;
@@ -69,28 +69,28 @@ void __list_add(generic_list *new_node,
 }
 
 static __ALWAYS_INLINE
-void __list_delete(generic_list *previous, generic_list *next) {
+void __list_delete(Generic_List *previous, Generic_List *next) {
   next->prev = previous;
   previous->next = next;
 }
 
 static __ALWAYS_INLINE
-bool list_is_empty(const generic_list *head) {
+bool list_is_empty(const Generic_List *head) {
   return (uint8_t) (head->next == head);
 }
 
 static __ALWAYS_INLINE
-void list_add(generic_list *head, generic_list *new_node) {
+void list_add(Generic_List *head, Generic_List *new_node) {
   __list_add(new_node, head, head->next);
 }
 
 static __ALWAYS_INLINE
-void list_add_tail(generic_list *head, generic_list *new_node) {
+void list_add_tail(Generic_List *head, Generic_List *new_node) {
   __list_add(new_node, head->prev, head);
 }
 
 static __ALWAYS_INLINE
-void list_delete_entry(generic_list *entry) {
+void list_delete_entry(Generic_List *entry) {
   __list_delete(entry->prev, entry->next);
 }
 
